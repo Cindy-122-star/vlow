@@ -6,6 +6,14 @@ const questions=[
   {text:'若要按文章建议开展野外记录，哪组变量最完整？',options:['发光位点与闪光节律特征','光的亮度、观察者年龄、天气预报','发光位点、闪光节律特征、信号应答事件'],answer:2},
   {text:'文章提醒三项观测变量不宜相互替代。以下哪项解释最符合这一提醒？',options:['只要记录发光位置，就能直接推断全部通讯过程','发光位置、节律编码和个体应答分别提供不同层面的证据','观察到闪光应答即可确定发光的具体生化机制'],answer:1}
 ];
+const takeaways=[
+  {title:'冷光机制',detail:'底物与酶促反应耦合，驱动光子释放。'},
+  {title:'节律编码',detail:'持续时长、间隔周期与脉冲排布共同构成信号。'},
+  {title:'通讯功能',detail:'物种特异性节律帮助同种个体识别与求偶。'},
+  {title:'双向互动',detail:'感知同类闪光后发出应答，形成反馈链路。'},
+  {title:'野外记录',detail:'记录发光位点、闪光节律与信号应答事件。'},
+  {title:'证据层次',detail:'机制、节律编码与个体应答是不同层面的证据。'}
+];
 const body=document.body,condition=body.dataset.condition,immediate=condition==='D_LOW',highValue=condition==='V_HIGH';
 const state={condition,scenarioShownAt:new Date().toISOString(),taskStartedAt:null,taskStartLatencyMs:null,answers:[],completedAt:null};
 let startTime=performance.now(),questionIndex=0,selected=null,score=0;
@@ -51,8 +59,22 @@ function submitAnswer(){
   if(correct)score++;
   state.answers.push({question:questionIndex+1,answer:selected,correct});
   const feedback=$('answer-feedback');
-  feedback.className='answer-feedback'+(immediate&&correct?' correct-feedback':immediate?'':' neutral');
-  feedback.textContent=immediate?(correct?'回答正确！':'答案已记录，请继续。'):'';
+  if(highValue){
+    feedback.className='answer-feedback value-reminder';
+    const unlocked=state.answers.length;
+    const lessonMarkup=takeaways.slice(0,unlocked).map((item,index)=>`<li class="value-lesson"><span>${String(index+1).padStart(2,'0')}</span><div><strong>${item.title}</strong><small>${item.detail}</small></div></li>`).join('');
+    feedback.innerHTML=`<div class="value-reminder-head"><span class="value-reminder-icon" aria-hidden="true">✦</span><div class="value-reminder-copy"><strong>完成全部题目后，你将获得</strong><b>可保存的萤火虫观察知识卡</b></div><span class="value-count">${unlocked}/6</span></div><div class="value-meter"><i style="width:${unlocked/6*100}%"></i></div><ol class="value-lessons">${lessonMarkup}</ol><small class="value-reminder-foot">每完成一道题，就为你的观察知识卡增加一条新发现。</small>`;
+  }else{
+    feedback.className='answer-feedback'+(immediate&&correct?' correct-feedback':immediate?'':' neutral');
+    if(immediate){
+      const completed=state.answers.length;
+      const remaining=questions.length-completed;
+      const estimatedSeconds=remaining*15;
+      const milestone=completed>0&&completed%2===0;
+      feedback.textContent=`回答${correct?'正确':'错误'}！`+(milestone&&remaining>0?` 还有 ${remaining} 道题就完成了，预计 ${estimatedSeconds} 秒。`:milestone&&remaining===0?' 六道题已完成。':'');
+      if(milestone)feedback.classList.add('milestone-encouragement');
+    }else feedback.textContent='';
+  }
   questionIndex++;
   $('submit-answer').disabled=false;
   if(questionIndex===questions.length){
@@ -77,19 +99,23 @@ function finishTask(){
 }
 function init(){
   initStudyCursor();
-  if(condition==='U_LOW'){
-    $('scenario-copy').innerHTML=body.dataset.scenario
-      .replace('6 道简短小题','<strong class="scenario-highlight">6 道简短小题</strong>')
-      .replace('有趣知识','<strong class="scenario-highlight">有趣知识</strong>');
-  }else $('scenario-copy').textContent=body.dataset.scenario;
+  const highlightedCopy={
+    U_HIGH:'请阅读一篇萤火虫科普文章并完成 6 道题。任务需要<span class="manipulation-highlight">持续阅读并逐题核对文章信息</span>。',
+    U_LOW:'请阅读同一篇萤火虫科普文章并完成 6 道题。<span class="manipulation-highlight">题目简短、步骤清楚，每次只需处理当前一题</span>。',
+    V_HIGH:'<span class="manipulation-highlight">完成任务后，系统会为你生成一张可保存的萤火虫观察知识卡</span>，整理短文中的要点，供之后了解或观察萤火虫时参考。',
+    V_LOW:'请阅读文章并完成 6 道选择题。',
+    D_HIGH:'请完成 6 道选择题。<span class="manipulation-highlight">提交全部题目后，系统会统一显示每道题的答题反馈</span>。',
+    D_LOW:'<span class="manipulation-highlight">阅读文章预计花费 2 分钟，每道题作答后可立即知道对错</span>。'
+  };
+  $('scenario-copy').innerHTML=highlightedCopy[condition]||body.dataset.scenario;
+  $('acknowledgement-button').addEventListener('click',()=>show('intro'));
   $('start-button').addEventListener('click',()=>{
     state.taskStartedAt=new Date().toISOString();
     state.taskStartLatencyMs=Math.round(performance.now()-startTime);
     window.__demoData=state;
     window.dispatchEvent(new CustomEvent('study:task-start',{detail:{...state}}));
-    show(condition==='D_LOW'?'reading-cue':'reading');
+    show('reading');
   });
-  if(condition==='D_LOW') $('continue-to-article').addEventListener('click',()=>show('reading'));
   $('continue-to-questions').addEventListener('click',()=>{
     show('task');
   });
